@@ -15,7 +15,7 @@ from src.m2_search import HybridSearch
 from src.m3_rerank import CrossEncoderReranker
 from src.m4_eval import load_test_set, evaluate_ragas, failure_analysis, save_report
 from src.m5_enrichment import enrich_chunks
-from config import RERANK_TOP_K
+from config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, RERANK_TOP_K
 
 
 def build_pipeline():
@@ -29,16 +29,29 @@ def build_pipeline():
     print("\n[1/4] Chunking documents...", flush=True)
     docs = load_documents()
     all_chunks = []
-    for doc in docs:
+    parent_texts = {}
+    for document_index, doc in enumerate(docs):
         parents, children = chunk_hierarchical(doc["text"], metadata=doc["metadata"])
+        source = doc["metadata"].get("source", f"document_{document_index}")
+        parent_ids = {}
+        for parent in parents:
+            parent_id = f"{source}:{parent.parent_id}"
+            parent_ids[parent.parent_id] = parent_id
+            parent_texts[parent_id] = parent.text
         for child in children:
-            all_chunks.append({"text": child.text, "metadata": {**child.metadata, "parent_id": child.parent_id}})
+            all_chunks.append({
+                "text": child.text,
+                "metadata": {
+                    **child.metadata,
+                    "parent_id": parent_ids.get(child.parent_id, child.parent_id),
+                },
+            })
     print(f"  ✓ {len(all_chunks)} chunks from {len(docs)} documents ({time.time()-t0:.1f}s)", flush=True)
 
     # Step 2: Enrichment (M5)
     t0 = time.time()
     print(f"\n[2/4] Enriching {len(all_chunks)} chunks (M5, 1 API call/chunk)...", flush=True)
-    enriched = enrich_chunks(all_chunks)
+    enriched = enrich_chunks(all_chunks, use_api=bool(LLM_API_KEY))
     if enriched:
         all_chunks = [{"text": e.enriched_text, "metadata": e.auto_metadata} for e in enriched]
         print(f"  ✓ Enriched {len(enriched)} chunks ({time.time()-t0:.1f}s)", flush=True)
@@ -50,6 +63,7 @@ def build_pipeline():
     print(f"\n[3/4] Indexing {len(all_chunks)} chunks (BM25 + Dense)...", flush=True)
     search = HybridSearch()
     search.index(all_chunks)
+    search.parent_texts = parent_texts
     print(f"  ✓ Indexed ({time.time()-t0:.1f}s)", flush=True)
 
     # Step 4: Reranker (M3)
@@ -64,17 +78,32 @@ def build_pipeline():
 def run_query(query: str, search: HybridSearch, reranker: CrossEncoderReranker) -> tuple[str, list[str]]:
     """Run single query through pipeline."""
     results = search.search(query)
-    docs = [{"text": r.text, "score": r.score, "metadata": r.metadata} for r in results]
+    parent_texts = getattr(search, "parent_texts", {})
+    docs = []
+    seen_parents = set()
+    for result in results:
+        parent_id = result.metadata.get("parent_id")
+        parent_key = parent_id or result.text
+        if parent_key in seen_parents:
+            continue
+        seen_parents.add(parent_key)
+        docs.append({
+            "text": parent_texts.get(parent_id, result.text),
+            "score": result.score,
+            "metadata": result.metadata,
+        })
     reranked = reranker.rerank(query, docs, top_k=RERANK_TOP_K)
-    contexts = [r.text for r in reranked] if reranked else [r.text for r in results[:3]]
+    contexts = [r.text for r in reranked] if reranked else [doc["text"] for doc in docs[:3]]
 
-    from config import OPENAI_API_KEY
-    if OPENAI_API_KEY and contexts:
+    if LLM_API_KEY and contexts:
         try:
             from openai import OpenAI
-            client = OpenAI()
+            client_options = {"api_key": LLM_API_KEY}
+            if LLM_BASE_URL:
+                client_options["base_url"] = LLM_BASE_URL
+            client = OpenAI(**client_options)
             context_str = "\n\n".join(contexts)
-            resp = client.chat.completions.create(model="gpt-4o-mini", messages=[
+            resp = client.chat.completions.create(model=LLM_MODEL, messages=[
                 {"role": "system", "content": "Trả lời CHỈ dựa trên context. Nếu không có → nói 'Không tìm thấy.'"},
                 {"role": "user", "content": f"Context:\n{context_str}\n\nCâu hỏi: {query}"},
             ])
@@ -103,7 +132,7 @@ def evaluate_pipeline(search: HybridSearch, reranker: CrossEncoderReranker):
 
     t0 = time.time()
     print(f"\n[Eval] Running RAGAS (4 metrics × {len(test_set)} questions)...", flush=True)
-    results = evaluate_ragas(questions, answers, all_contexts, ground_truths)
+    results = evaluate_ragas(questions, answers, all_contexts, ground_truths, use_api=True)
     print(f"  ✓ RAGAS done ({time.time()-t0:.1f}s)", flush=True)
 
     print("\n" + "=" * 60)
