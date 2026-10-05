@@ -9,7 +9,10 @@ So sánh với basic chunking (baseline) để thấy improvement.
 Test: pytest tests/test_m1.py
 """
 
-import os, sys, glob, re
+import glob
+import os
+import re
+import sys
 from dataclasses import dataclass, field
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -18,8 +21,12 @@ if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import (DATA_DIR, HIERARCHICAL_PARENT_SIZE, HIERARCHICAL_CHILD_SIZE,
-                    SEMANTIC_THRESHOLD)
+from config import (
+    DATA_DIR,
+    HIERARCHICAL_CHILD_SIZE,
+    HIERARCHICAL_PARENT_SIZE,
+    SEMANTIC_THRESHOLD,
+)
 
 
 @dataclass

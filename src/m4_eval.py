@@ -2,7 +2,10 @@ from __future__ import annotations
 
 """Module 4: RAGAS Evaluation — 4 metrics + failure analysis."""
 
-import os, sys, json
+import json
+import os
+import sys
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 if hasattr(sys.stderr, "reconfigure"):
@@ -54,11 +57,17 @@ def evaluate_ragas(questions: list[str], answers: list[str],
 
     try:
         import math
+
         from datasets import Dataset
         from langchain_community.embeddings import HuggingFaceEmbeddings
         from langchain_openai import ChatOpenAI
         from ragas import evaluate
-        from ragas.metrics import answer_relevancy, context_precision, context_recall, faithfulness
+        from ragas.metrics import (
+            answer_relevancy,
+            context_precision,
+            context_recall,
+            faithfulness,
+        )
 
         llm_options = {"model": LLM_MODEL, "api_key": LLM_API_KEY}
         if LLM_BASE_URL:

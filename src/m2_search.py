@@ -2,7 +2,9 @@ from __future__ import annotations
 
 """Module 2: Hybrid Search — BM25 (Vietnamese) + Dense + RRF."""
 
-import os, sys
+import os
+import sys
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 if hasattr(sys.stderr, "reconfigure"):
@@ -10,8 +12,16 @@ if hasattr(sys.stderr, "reconfigure"):
 from dataclasses import dataclass
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import (QDRANT_HOST, QDRANT_PORT, COLLECTION_NAME, EMBEDDING_MODEL,
-                    EMBEDDING_DIM, BM25_TOP_K, DENSE_TOP_K, HYBRID_TOP_K)
+from config import (
+    BM25_TOP_K,
+    COLLECTION_NAME,
+    DENSE_TOP_K,
+    EMBEDDING_DIM,
+    EMBEDDING_MODEL,
+    HYBRID_TOP_K,
+    QDRANT_HOST,
+    QDRANT_PORT,
+)
 
 
 @dataclass
@@ -167,5 +177,5 @@ class HybridSearch:
 
 
 if __name__ == "__main__":
-    print(f"Original:  Nhân viên được nghỉ phép năm")
+    print("Original:  Nhân viên được nghỉ phép năm")
     print(f"Segmented: {segment_vietnamese('Nhân viên được nghỉ phép năm')}")

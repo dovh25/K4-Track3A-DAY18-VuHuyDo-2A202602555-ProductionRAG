@@ -6,7 +6,6 @@
     "context_recall": 0.0
   },
   "num_questions": 20,
-  "evaluation_status": "blocked_quota",
-  "evaluation_note": "Gemini free-tier quota exhausted; metrics are not measured.",
+  "evaluation_status": "skipped",
   "failures": []
 }
